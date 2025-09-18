@@ -23,7 +23,7 @@ public class TicketEntity {
     private String mess;
 
     protected TicketEntity() {} // costruttore richiesto da JPA
-
+   public LocalDateTime getDate(){return date;}
     public Long getId() { return id; }
     public Boolean getCheckedIn() { return checkedIn; }
     public LocalDateTime getCheckedOut() { return checkedOut; }

@@ -8,7 +8,6 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -21,19 +20,18 @@ public class TicketCalendarView extends VerticalLayout {
     private final Div calendarContainer;
     private final H2 weekTitle;
     private final TicketRepository ticketRepository;
+
     public TicketCalendarView(TicketRepository ticketRepository) {
         this.ticketRepository = ticketRepository;
         setSizeFull();
         setPadding(true);
         setSpacing(true);
 
-
         LocalDate today = LocalDate.now();
         weekStart = today.minusDays(today.getDayOfWeek().getValue() % 7);
 
         calendarContainer = new Div();
         weekTitle = new H2();
-
 
         Button prev = new Button("<", e -> showWeek(weekStart.minusWeeks(1)));
         Button next = new Button(">", e -> showWeek(weekStart.plusWeeks(1)));
@@ -67,8 +65,6 @@ public class TicketCalendarView extends VerticalLayout {
                 .set("padding", "10px")
                 .set("min-width", "100px");
 
-
-
         // intestazioni giorni della settimana
         String[] days = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
         for (String d : days) {
@@ -88,8 +84,8 @@ public class TicketCalendarView extends VerticalLayout {
                     .set("border", "1px solid #ccc")
                     .set("border-radius", "8px")
                     .set("min-height", "100px")
-                    .set("padding", "6px")
-                   .set("weight","100px");
+                    .set("padding", "6px");
+
             Span label = new Span(current.getDayOfMonth() + "/" + current.getMonthValue());
             label.getStyle().set("font-weight", "bold");
             cell.add(label);
@@ -98,8 +94,14 @@ public class TicketCalendarView extends VerticalLayout {
                 Ticket t = tickets.get(current);
                 Span ticketInfo = new Span(t.getCheckedIn() + "/" + t.getTotal() + " Ticket");
 
-                String bgColor = t.isComplete() ? "#4CAF50" :
-                        (t.getCheckedIn() == 0 ? "#F44336" : "#FF9800");
+                String bgColor;
+                if (t.isComplete()) {
+                    bgColor = "#4CAF50"; // verde completato
+                } else if (t.getCheckedIn() > 0) {
+                    bgColor = "#FF9800"; // arancione assegnato
+                } else {
+                    bgColor = "#F44336"; // rosso non assegnato
+                }
 
                 ticketInfo.getStyle()
                         .set("display", "block")
@@ -123,20 +125,22 @@ public class TicketCalendarView extends VerticalLayout {
         LocalDate start = weekStart;
         LocalDate end = weekStart.plusDays(6);
 
-        List<TicketEntity> entries = ticketRepository.findOpenedOrClosedBetween(start.atStartOfDay(),
-                end.atTime(23,59,59));
+        List<TicketEntity> entries = ticketRepository.findOpenedOrClosedBetween(
+                start.atStartOfDay(), end.atTime(23, 59, 59));
 
         for (TicketEntity entry : entries) {
+            LocalDate openDate = entry.getDate().toLocalDate();
 
-            if (Boolean.TRUE.equals(entry.getCheckedIn()) && entry.getCheckedOut() == null) {
-                map.computeIfAbsent(LocalDate.now(), d -> new Ticket(0, 0)).incrementIn();
-            }
+            if (!openDate.isBefore(start) && !openDate.isAfter(end)) {
+                Ticket t = map.computeIfAbsent(openDate, d -> new Ticket(0, 0));
+                t.incrementTotal(); // ogni ticket aumenta il totale
 
-            // Se il ticket è chiuso, lo conteggiamo sul giorno di chiusura
-            if (entry.getCheckedOut() != null) {
-                LocalDate closedDate = entry.getCheckedOut().toLocalDate();
-                if (!closedDate.isBefore(start) && !closedDate.isAfter(end)) {
-                    map.computeIfAbsent(closedDate, d -> new Ticket(0, 0)).incrementOut();
+                if (Boolean.TRUE.equals(entry.getCheckedIn())) {
+                    t.incrementIn(); // se assegnato aumenta checkedIn
+                }
+
+                if (entry.getCheckedOut() != null) {
+                    t.markComplete(); // segnalo che è completato
                 }
             }
         }
@@ -148,19 +152,24 @@ public class TicketCalendarView extends VerticalLayout {
     public static class Ticket {
         private int checkedIn;
         private int total;
+        private boolean complete;
 
         public Ticket(int checkedIn, int total) {
             this.checkedIn = checkedIn;
             this.total = total;
+            this.complete = false;
         }
 
         public void incrementIn() {
             checkedIn++;
+        }
+
+        public void incrementTotal() {
             total++;
         }
 
-        public void incrementOut() {
-            total++;
+        public void markComplete() {
+            this.complete = true;
         }
 
         public int getCheckedIn() {
@@ -172,9 +181,8 @@ public class TicketCalendarView extends VerticalLayout {
         }
 
         public boolean isComplete() {
-            return total > 0 && checkedIn == total;
+            return complete;
         }
     }
-
 
 }

@@ -10,11 +10,10 @@ import java.util.List;
 
 public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
     @Query("""
-       SELECT t FROM TicketEntity t
-       WHERE (t.checkedIn = true AND t.checkedOut IS NULL)
-          OR (t.checkedOut BETWEEN :start AND :end)
-       """)
+            SELECT t FROM TicketEntity t
+            WHERE (t.date BETWEEN :start AND :end)
+               OR (t.checkedOut BETWEEN :start AND :end)
+            """)
     List<TicketEntity> findOpenedOrClosedBetween(@Param("start") LocalDateTime start,
                                                  @Param("end") LocalDateTime end);
-
 }
