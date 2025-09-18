@@ -11,6 +11,7 @@ import com.vaadin.flow.router.Route;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Route("")
@@ -19,8 +20,9 @@ public class TicketCalendarView extends VerticalLayout {
     private LocalDate weekStart;
     private final Div calendarContainer;
     private final H2 weekTitle;
-
-    public TicketCalendarView() {
+    private final TicketRepository ticketRepository;
+    public TicketCalendarView(TicketRepository ticketRepository) {
+        this.ticketRepository = ticketRepository;
         setSizeFull();
         setPadding(true);
         setSpacing(true);
@@ -116,29 +118,63 @@ public class TicketCalendarView extends VerticalLayout {
 
         return calendar;
     }
-
     private Map<LocalDate, Ticket> getTicketData() {
         Map<LocalDate, Ticket> map = new HashMap<>();
-        // dati demo
-        map.put(LocalDate.of(2025, 9, 15), new Ticket(12, 15));
-        map.put(LocalDate.of(2025, 9, 16), new Ticket(8, 20));
-        map.put(LocalDate.of(2025, 9, 18), new Ticket(0, 10));
-        map.put(LocalDate.of(2025, 9, 19), new Ticket(20, 20));
+        LocalDate start = weekStart;
+        LocalDate end = weekStart.plusDays(6);
+
+        List<TicketEntity> entries = ticketRepository.findOpenedOrClosedBetween(start.atStartOfDay(),
+                end.atTime(23,59,59));
+
+        for (TicketEntity entry : entries) {
+
+            if (Boolean.TRUE.equals(entry.getCheckedIn()) && entry.getCheckedOut() == null) {
+                map.computeIfAbsent(LocalDate.now(), d -> new Ticket(0, 0)).incrementIn();
+            }
+
+            // Se il ticket è chiuso, lo conteggiamo sul giorno di chiusura
+            if (entry.getCheckedOut() != null) {
+                LocalDate closedDate = entry.getCheckedOut().toLocalDate();
+                if (!closedDate.isBefore(start) && !closedDate.isAfter(end)) {
+                    map.computeIfAbsent(closedDate, d -> new Ticket(0, 0)).incrementOut();
+                }
+            }
+        }
+
         return map;
     }
 
-    // Classe Ticket
+
     public static class Ticket {
-        private final int checkedIn;
-        private final int total;
+        private int checkedIn;
+        private int total;
 
         public Ticket(int checkedIn, int total) {
             this.checkedIn = checkedIn;
             this.total = total;
         }
 
-        public int getCheckedIn() { return checkedIn; }
-        public int getTotal() { return total; }
-        public boolean isComplete() { return checkedIn == total; }
+        public void incrementIn() {
+            checkedIn++;
+            total++;
+        }
+
+        public void incrementOut() {
+            total++;
+        }
+
+        public int getCheckedIn() {
+            return checkedIn;
+        }
+
+        public int getTotal() {
+            return total;
+        }
+
+        public boolean isComplete() {
+            return total > 0 && checkedIn == total;
+        }
     }
+
+
 }
