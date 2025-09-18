@@ -15,7 +15,6 @@ import java.util.Map;
 
 @Route("")
 public class TicketCalendarView extends VerticalLayout {
-
     private LocalDate currentStart;
     private final Div calendarContainer;
     private final H2 calendarTitle;
