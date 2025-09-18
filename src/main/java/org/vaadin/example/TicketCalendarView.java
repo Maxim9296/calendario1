@@ -26,9 +26,9 @@ public class TicketCalendarView extends VerticalLayout {
         setSizeFull();
         setPadding(true);
         setSpacing(true);
-
-        LocalDate today = LocalDate.now();
-
+        getStyle().set("background", "linear-gradient(135deg, #6d90b9, #bbc7dc)");
+        LocalDate  today = LocalDate.now();
+        currentStart =today;
         calendarContainer = new Div();
         calendarTitle = new H2();
 
@@ -45,7 +45,7 @@ public class TicketCalendarView extends VerticalLayout {
 
         add(header, calendarContainer);
 
-        showCalendar(currentStart);
+        showCalendar(today);
     }
 
     private void navigate(int step) {
@@ -103,20 +103,26 @@ public class TicketCalendarView extends VerticalLayout {
 
         return map;
     }
-
     private Div buildWeekCalendar(LocalDate start, Map<LocalDate, Ticket> tickets) {
         Div calendar = new Div();
         calendar.getStyle()
                 .set("display", "grid")
-                .set("grid-template-columns", "repeat(7, 1fr)")
-                .set("gap", "5px")
-                .set("background-color", "#f0f0f0")
-                .set("padding", "10px");
+                .set("grid-template-columns", "repeat(7, 120px)")
+                .set("gap", "8px")
+                .set("background-color", "#ffffff")
+                .set("padding", "12px")
+                .set("justify-content", "center");
 
         String[] days = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
         for (String d : days) {
             Span header = new Span(d);
-            header.getStyle().set("font-weight", "bold").set("text-align", "center");
+            header.getStyle()
+                    .set("font-weight", "600")
+                    .set("text-align", "center")
+                    .set("padding", "6px 0")
+                    .set("background-color", "#e0e0e0")
+                    .set("border-radius", "6px")
+                    .set("font-size", "14px");
             calendar.add(header);
         }
 
@@ -132,21 +138,31 @@ public class TicketCalendarView extends VerticalLayout {
         Div calendar = new Div();
         calendar.getStyle()
                 .set("display", "grid")
-                .set("grid-template-columns", "repeat(7, 1fr)")
-                .set("gap", "5px")
-                .set("background-color", "#f0f0f0")
-                .set("padding", "10px");
+                .set("grid-template-columns", "repeat(7, 120px)")
+                .set("gap", "8px")
+                .set("background-color", "#ffffff")
+                .set("padding", "12px")
+                .set("justify-content", "center");
 
         String[] days = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
         for (String d : days) {
             Span header = new Span(d);
-            header.getStyle().set("font-weight", "bold").set("text-align", "center");
+            header.getStyle()
+                    .set("font-weight", "600")
+                    .set("text-align", "center")
+                    .set("padding", "6px 0")
+                    .set("background-color", "#e0e0e0")
+                    .set("border-radius", "6px")
+                    .set("font-size", "14px");
             calendar.add(header);
         }
 
         int dayOfWeekOffset = monthStart.getDayOfWeek().getValue() % 7; // Sunday = 0
         for (int i = 0; i < dayOfWeekOffset; i++) {
-            calendar.add(new Div()); // empty cells for alignment
+            Div emptyCell = new Div();
+            emptyCell.setHeight("100px");
+            emptyCell.setWidth("120px");
+            calendar.add(emptyCell);
         }
 
         int daysInMonth = monthStart.lengthOfMonth();
@@ -161,33 +177,48 @@ public class TicketCalendarView extends VerticalLayout {
     private Div createCalendarCell(LocalDate date, Ticket ticket) {
         Div cell = new Div();
         cell.getStyle()
-                .set("border", "1px solid #ccc")
+                .set("border", "1px solid #ddd")
                 .set("border-radius", "8px")
                 .set("min-height", "100px")
-                .set("padding", "6px");
+                .set("width", "100px")
+                .set("padding", "8px")
+                .set("display", "flex")
+                .set("flex-direction", "column")
+                .set("align-items", "center")
+                .set("justify-content", "flex-start")
+                .set("background-color", "#fafafa")
+                .set("transition", "transform 0.2s")
+                .set("cursor", "pointer");
+
+        // Effetto hover
+        cell.getElement().getStyle().set("hover", "transform: scale(1.03)");
 
         Span label = new Span(date.getDayOfMonth() + "/" + date.getMonthValue());
-        label.getStyle().set("font-weight", "bold");
+        label.getStyle()
+                .set("font-weight", "600")
+                .set("margin-bottom", "6px")
+                .set("font-size", "14px");
         cell.add(label);
 
         if (ticket != null) {
-            Span ticketInfo = new Span(ticket.getCheckedIn() + "/" + ticket.getTotal() + " Ticket");
+            Span ticketInfo = new Span(ticket.getCheckedIn() + "/" + ticket.getTotal() + " Tickets");
 
             String bgColor = "#F44336"; // rosso
             if (ticket.isComplete()) {
-                bgColor = "#4CAF50";
+                bgColor = "#4CAF50"; // verde
             } else if (ticket.getCheckedIn() > 0) {
-                bgColor = "#FF9800";
+                bgColor = "#FF9800"; // arancione
             }
 
             ticketInfo.getStyle()
                     .set("display", "block")
-                    .set("margin-top", "6px")
-                    .set("padding", "4px 6px")
+                    .set("margin-top", "auto")
+                    .set("padding", "4px 8px")
                     .set("background-color", bgColor)
                     .set("color", "white")
                     .set("border-radius", "4px")
-                    .set("font-size", "13px");
+                    .set("font-size", "12px")
+                    .set("text-align", "center");
 
             cell.add(ticketInfo);
         }
