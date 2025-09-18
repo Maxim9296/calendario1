@@ -16,10 +16,11 @@ import java.util.Map;
 @Route("")
 public class TicketCalendarView extends VerticalLayout {
 
-    private LocalDate weekStart;
+    private LocalDate currentStart;
     private final Div calendarContainer;
-    private final H2 weekTitle;
+    private final H2 calendarTitle;
     private final TicketRepository ticketRepository;
+    private boolean isMonthlyView = false;
 
     public TicketCalendarView(TicketRepository ticketRepository) {
         this.ticketRepository = ticketRepository;
@@ -28,31 +29,80 @@ public class TicketCalendarView extends VerticalLayout {
         setSpacing(true);
 
         LocalDate today = LocalDate.now();
-        weekStart = today.minusDays(today.getDayOfWeek().getValue() % 7);
 
         calendarContainer = new Div();
-        weekTitle = new H2();
+        calendarTitle = new H2();
 
-        Button prev = new Button("<", e -> showWeek(weekStart.minusWeeks(1)));
-        Button next = new Button(">", e -> showWeek(weekStart.plusWeeks(1)));
+        Button prev = new Button("<", e -> navigate(-1));
+        Button next = new Button(">", e -> navigate(1));
+        Button toggleView = new Button("Toggle View", e -> {
+            isMonthlyView = !isMonthlyView;
+            showCalendar(today);
+        });
 
-        HorizontalLayout header = new HorizontalLayout(prev, weekTitle, next);
+        HorizontalLayout header = new HorizontalLayout(prev, calendarTitle, next, toggleView);
         header.setAlignItems(Alignment.CENTER);
         header.setSpacing(true);
 
         add(header, calendarContainer);
 
-        showWeek(weekStart);
+        showCalendar(currentStart);
     }
 
-    private void showWeek(LocalDate startDate) {
-        this.weekStart = startDate;
+    private void navigate(int step) {
+        currentStart = isMonthlyView
+                ? currentStart.plusMonths(step)
+                : currentStart.plusWeeks(step);
+        showCalendar(currentStart);
+    }
 
-        LocalDate endDate = weekStart.plusDays(6);
-        weekTitle.setText("Week: " + weekStart + " → " + endDate);
+    private void showCalendar(LocalDate startDate) {
+        if (isMonthlyView) {
+            currentStart = startDate.withDayOfMonth(1);
+            calendarTitle.setText("Month: " + currentStart.getMonth() + " " + currentStart.getYear());
+            calendarContainer.removeAll();
+            calendarContainer.add(buildMonthCalendar(currentStart, getMonthlyTicketData()));
+        } else {
+            // Calcola inizio della settimana qui
+            currentStart = startDate.minusDays(startDate.getDayOfWeek().getValue() % 7);
+            LocalDate endDate = currentStart.plusDays(6);
+            calendarTitle.setText("Week: " + currentStart + " → " + endDate);
+            calendarContainer.removeAll();
+            calendarContainer.add(buildWeekCalendar(currentStart, getWeeklyTicketData()));
+        }
+    }
 
-        calendarContainer.removeAll();
-        calendarContainer.add(buildWeekCalendar(weekStart, getTicketData()));
+    private Map<LocalDate, Ticket> getWeeklyTicketData() {
+        return getTicketData(currentStart, currentStart.plusDays(6));
+    }
+
+    private Map<LocalDate, Ticket> getMonthlyTicketData() {
+        LocalDate start = currentStart.withDayOfMonth(1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        return getTicketData(start, end);
+    }
+
+    private Map<LocalDate, Ticket> getTicketData(LocalDate start, LocalDate end) {
+        Map<LocalDate, Ticket> map = new HashMap<>();
+        List<TicketEntity> entries = ticketRepository.findOpenedOrClosedBetween(
+                start.atStartOfDay(), end.atTime(23, 59, 59));
+
+        for (TicketEntity entry : entries) {
+            LocalDate openDate = entry.getDate().toLocalDate();
+
+            if (!openDate.isBefore(start) && !openDate.isAfter(end)) {
+                Ticket t = map.computeIfAbsent(openDate, d -> new Ticket(0, 0));
+                t.incrementTotal();
+                if (Boolean.TRUE.equals(entry.getCheckedIn())) {
+                    t.incrementIn();
+                }
+                if (entry.getCheckedOut() != null) {
+                    t.markComplete();
+                }
+            }
+        }
+
+        return map;
     }
 
     private Div buildWeekCalendar(LocalDate start, Map<LocalDate, Ticket> tickets) {
@@ -62,93 +112,91 @@ public class TicketCalendarView extends VerticalLayout {
                 .set("grid-template-columns", "repeat(7, 1fr)")
                 .set("gap", "5px")
                 .set("background-color", "#f0f0f0")
-                .set("padding", "10px")
-                .set("min-width", "100px");
+                .set("padding", "10px");
 
-        // intestazioni giorni della settimana
         String[] days = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
         for (String d : days) {
             Span header = new Span(d);
-            header.getStyle()
-                    .set("font-weight", "bold")
-                    .set("text-align", "center");
+            header.getStyle().set("font-weight", "bold").set("text-align", "center");
             calendar.add(header);
         }
 
-        // giorni della settimana
         for (int i = 0; i < 7; i++) {
             LocalDate current = start.plusDays(i);
-
-            Div cell = new Div();
-            cell.getStyle()
-                    .set("border", "1px solid #ccc")
-                    .set("border-radius", "8px")
-                    .set("min-height", "100px")
-                    .set("padding", "6px");
-
-            Span label = new Span(current.getDayOfMonth() + "/" + current.getMonthValue());
-            label.getStyle().set("font-weight", "bold");
-            cell.add(label);
-
-            if (tickets.containsKey(current)) {
-                Ticket t = tickets.get(current);
-                Span ticketInfo = new Span(t.getCheckedIn() + "/" + t.getTotal() + " Ticket");
-
-                String bgColor;
-                if (t.isComplete()) {
-                    bgColor = "#4CAF50"; // verde completato
-                } else if (t.getCheckedIn() > 0) {
-                    bgColor = "#FF9800"; // arancione assegnato
-                } else {
-                    bgColor = "#F44336"; // rosso non assegnato
-                }
-
-                ticketInfo.getStyle()
-                        .set("display", "block")
-                        .set("margin-top", "6px")
-                        .set("padding", "4px 6px")
-                        .set("background-color", bgColor)
-                        .set("color", "white")
-                        .set("border-radius", "4px")
-                        .set("font-size", "13px");
-
-                cell.add(ticketInfo);
-            }
-
-            calendar.add(cell);
+            calendar.add(createCalendarCell(current, tickets.get(current)));
         }
 
         return calendar;
     }
-    private Map<LocalDate, Ticket> getTicketData() {
-        Map<LocalDate, Ticket> map = new HashMap<>();
-        LocalDate start = weekStart;
-        LocalDate end = weekStart.plusDays(6);
 
-        List<TicketEntity> entries = ticketRepository.findOpenedOrClosedBetween(
-                start.atStartOfDay(), end.atTime(23, 59, 59));
+    private Div buildMonthCalendar(LocalDate monthStart, Map<LocalDate, Ticket> tickets) {
+        Div calendar = new Div();
+        calendar.getStyle()
+                .set("display", "grid")
+                .set("grid-template-columns", "repeat(7, 1fr)")
+                .set("gap", "5px")
+                .set("background-color", "#f0f0f0")
+                .set("padding", "10px");
 
-        for (TicketEntity entry : entries) {
-            LocalDate openDate = entry.getDate().toLocalDate();
-
-            if (!openDate.isBefore(start) && !openDate.isAfter(end)) {
-                Ticket t = map.computeIfAbsent(openDate, d -> new Ticket(0, 0));
-                t.incrementTotal(); // ogni ticket aumenta il totale
-
-                if (Boolean.TRUE.equals(entry.getCheckedIn())) {
-                    t.incrementIn(); // se assegnato aumenta checkedIn
-                }
-
-                if (entry.getCheckedOut() != null) {
-                    t.markComplete(); // segnalo che è completato
-                }
-            }
+        String[] days = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+        for (String d : days) {
+            Span header = new Span(d);
+            header.getStyle().set("font-weight", "bold").set("text-align", "center");
+            calendar.add(header);
         }
 
-        return map;
+        int dayOfWeekOffset = monthStart.getDayOfWeek().getValue() % 7; // Sunday = 0
+        for (int i = 0; i < dayOfWeekOffset; i++) {
+            calendar.add(new Div()); // empty cells for alignment
+        }
+
+        int daysInMonth = monthStart.lengthOfMonth();
+        for (int i = 1; i <= daysInMonth; i++) {
+            LocalDate current = monthStart.withDayOfMonth(i);
+            calendar.add(createCalendarCell(current, tickets.get(current)));
+        }
+
+        return calendar;
     }
 
+    private Div createCalendarCell(LocalDate date, Ticket ticket) {
+        Div cell = new Div();
+        cell.getStyle()
+                .set("border", "1px solid #ccc")
+                .set("border-radius", "8px")
+                .set("min-height", "100px")
+                .set("padding", "6px");
 
+        Span label = new Span(date.getDayOfMonth() + "/" + date.getMonthValue());
+        label.getStyle().set("font-weight", "bold");
+        cell.add(label);
+
+        if (ticket != null) {
+            Span ticketInfo = new Span(ticket.getCheckedIn() + "/" + ticket.getTotal() + " Ticket");
+
+            String bgColor = "#F44336"; // rosso
+            if (ticket.isComplete()) {
+                bgColor = "#4CAF50";
+            } else if (ticket.getCheckedIn() > 0) {
+                bgColor = "#FF9800";
+            }
+
+            ticketInfo.getStyle()
+                    .set("display", "block")
+                    .set("margin-top", "6px")
+                    .set("padding", "4px 6px")
+                    .set("background-color", bgColor)
+                    .set("color", "white")
+                    .set("border-radius", "4px")
+                    .set("font-size", "13px");
+
+            cell.add(ticketInfo);
+        }
+
+        return cell;
+    }
+
+    // Classe Ticket interna invariata
     public static class Ticket {
         private int checkedIn;
         private int total;
@@ -184,5 +232,4 @@ public class TicketCalendarView extends VerticalLayout {
             return complete;
         }
     }
-
 }
